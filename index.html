@@ -1,0 +1,1602 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>物流配送中心选址系统 - 桂林市</title>
+    
+    <!-- 引入Leaflet地图库 -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.7.1/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.7.1/dist/leaflet.js"></script>
+    
+    <!-- 在head部分添加高德地图API -->
+    <script type="text/javascript">
+        window._AMapSecurityConfig = {
+            securityJsCode: '2b8fc5345defb93d7eee7343b4ab0b69'
+        }
+    </script>
+    <script type="text/javascript" src="https://webapi.amap.com/maps?v=2.0&key=1d109683f016a76986d9375c7369d5c0"></script>
+    <script type="text/javascript" src="https://webapi.amap.com/maps/webservice?v=1.0&key=1d109683f016a76986d9375c7369d5c0"></script>
+    
+    <!-- 在head中添加Chart.js库 -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    
+    <style>
+        #map {
+            height: 500px;
+            width: 100%;
+        }
+        .control-panel {
+            padding: 20px;
+            background: #f5f5f5;
+            margin-bottom: 20px;
+        }
+        .info-panel {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            background: white;
+            padding: 15px;
+            border-radius: 5px;
+            box-shadow: 0 0 10px rgba(0,0,0,0.1);
+            z-index: 1000;
+            max-height: 400px;
+            overflow-y: auto;
+            min-width: 300px;
+        }
+        .calculation-panel {
+            margin-top: 20px;
+            padding: 20px;
+            background: #fff;
+            border-radius: 5px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+        }
+        table {
+            border-collapse: collapse;
+            width: 100%;
+            margin-bottom: 15px;
+        }
+        th, td {
+            border: 1px solid #ddd;
+            padding: 8px;
+            text-align: left;
+        }
+        th {
+            background-color: #f2f2f2;
+        }
+        .criteria-weights {
+            margin-bottom: 15px;
+        }
+        .calculation-steps {
+            margin-top: 15px;
+            padding: 10px;
+            background: #f9f9f9;
+            border-radius: 5px;
+        }
+        .legend {
+            position: absolute;
+            bottom: 20px;
+            right: 20px;
+            background: white;
+            padding: 10px;
+            border-radius: 5px;
+            box-shadow: 0 0 10px rgba(0,0,0,0.1);
+            z-index: 1000;
+        }
+        
+        .legend img {
+            width: 20px;
+            height: 30px;
+            vertical-align: middle;
+        }
+        
+        .coordinate-picker {
+            margin-top: 10px;
+            padding: 10px;
+            background: #f0f0f0;
+            border-radius: 5px;
+        }
+        
+        .coordinate-picker input {
+            width: 100px;
+            margin-right: 10px;
+            padding: 5px;
+        }
+        
+        .export-btn {
+            background-color: #4CAF50;
+            color: white;
+            padding: 8px 15px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            margin-left: 10px;
+        }
+        
+        .export-btn:hover {
+            background-color: #45a049;
+        }
+        
+        .calculation-details {
+            margin-top: 10px;
+            padding: 10px;
+            background: #f5f5f5;
+            border-radius: 5px;
+        }
+        
+        .retry-notification {
+            position: fixed;
+            top: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: #ff9800;
+            color: white;
+            padding: 10px 20px;
+            border-radius: 5px;
+            display: none;
+        }
+
+        .loading-indicator {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: rgba(0,0,0,0.8);
+            color: white;
+            padding: 20px;
+            border-radius: 10px;
+            z-index: 2000;
+            display: none;
+        }
+
+        .mobile-warning {
+            display: none;
+        }
+
+        @media (max-width: 768px) {
+            .mobile-warning {
+                display: block;
+                background: #fff3cd;
+                padding: 10px;
+                margin-bottom: 10px;
+                border-radius: 5px;
+            }
+            
+            .control-panel {
+                padding: 10px;
+            }
+            
+            .info-panel {
+                position: relative;
+                top: auto;
+                right: auto;
+                margin-top: 10px;
+            }
+        }
+
+        .undo-redo {
+            margin-bottom: 10px;
+        }
+
+        .undo-redo button {
+            margin-right: 5px;
+        }
+
+        .file-upload {
+            margin: 10px 0;
+        }
+
+        .comparison-panel {
+            margin-top: 20px;
+            padding: 15px;
+            background: #f8f9fa;
+            border-radius: 5px;
+        }
+
+        .visualization-panel {
+            margin-top: 20px;
+            padding: 20px;
+            background: #fff;
+            border-radius: 5px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+        }
+
+        .visualization-panel .chart-container {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 30px;
+            padding: 20px;
+            background: #f8f9fa;
+            border-radius: 8px;
+        }
+
+        .chart-wrapper {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+            transition: transform 0.2s;
+        }
+
+        .chart-wrapper:hover {
+            transform: translateY(-5px);
+        }
+
+        .chart-title {
+            text-align: center;
+            margin-bottom: 15px;
+            color: #333;
+            font-weight: bold;
+            font-size: 16px;
+            padding: 10px 0;
+            border-bottom: 1px solid #eee;
+        }
+
+        .visualization-panel canvas {
+            width: 100% !important;
+            height: 300px !important;
+            margin: 10px 0;
+        }
+
+        .btn-delete {
+            background-color: #ff4444;
+            color: white;
+            border: none;
+            padding: 5px 10px;
+            border-radius: 3px;
+            cursor: pointer;
+        }
+        
+        .btn-delete:hover {
+            background-color: #cc0000;
+        }
+        
+        #pointsTable input[type="number"] {
+            padding: 3px;
+            border: 1px solid #ddd;
+            border-radius: 3px;
+        }
+
+        .custom-popup .leaflet-popup-content-wrapper {
+            background: white;
+            border-radius: 5px;
+            box-shadow: 0 3px 14px rgba(0,0,0,0.2);
+        }
+        
+        .custom-popup .leaflet-popup-content {
+            margin: 0;
+            padding: 0;
+        }
+        
+        .custom-popup .leaflet-popup-tip {
+            background: white;
+        }
+
+        /* 修改页面标题样式 */
+        .page-header {
+            background: linear-gradient(135deg, #64b5f6 0%, #2196f3 100%); /* 更柔和的蓝色渐变 */
+            color: white;
+            padding: 40px 20px;
+            margin: 0 auto 30px;
+            border-radius: 15px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+            text-align: center;
+            max-width: 800px;
+        }
+
+        .page-header h1 {
+            margin: 0;
+            font-size: 32px;
+            font-weight: 600;
+            color: rgba(255, 255, 255, 0.95);
+            text-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            letter-spacing: 1px;
+        }
+
+        .page-header .author {
+            margin-top: 15px;
+            font-size: 16px;
+            color: rgba(255, 255, 255, 0.9);
+            font-weight: 300;
+            letter-spacing: 0.5px;
+        }
+
+        /* 移除控制面板中的重复标题 */
+        .control-panel h1 {
+            display: none;
+        }
+
+        /* 调整整体布局 */
+        body {
+            padding: 20px;
+            background-color: #f8f9fa;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        /* 美化控制面板 */
+        .control-panel {
+            background: white;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            padding: 25px;
+        }
+
+        .control-panel button {
+            background: #1976d2;
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 5px;
+            cursor: pointer;
+            transition: background 0.3s;
+            margin-right: 10px;
+        }
+
+        .control-panel button:hover {
+            background: #1565c0;
+        }
+
+        /* 美化地图容器 */
+        #map {
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            margin: 20px 0;
+        }
+
+        /* 美化信息面板 */
+        .info-panel {
+            background: white;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+
+        /* 美化表格 */
+        table {
+            width: 100%;
+            border-collapse: separate;
+            border-spacing: 0;
+            margin: 15px 0;
+        }
+
+        th, td {
+            padding: 12px;
+            border: 1px solid #e0e0e0;
+        }
+
+        th {
+            background: #f5f5f5;
+            font-weight: bold;
+            color: #333;
+        }
+
+        tr:hover {
+            background: #f8f9fa;
+        }
+
+        /* 美化输入框 */
+        input[type="number"] {
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            transition: border-color 0.3s;
+        }
+
+        input[type="number"]:focus {
+            border-color: #1976d2;
+            outline: none;
+        }
+
+        /* 添加页脚 */
+        .footer {
+            text-align: center;
+            padding: 20px;
+            margin-top: 30px;
+            color: #666;
+            border-top: 1px solid #eee;
+        }
+    </style>
+</head>
+<body>
+    <div class="page-header">
+        <h1>桂林市物流配送中心选址系统</h1>
+        <div class="author">作者：苏传毫</div>
+    </div>
+
+    <div class="control-panel">
+        <h1>桂林市物流配送中心选址系统</h1>
+        <div>
+            <button onclick="addLocation()">添加配送点</button>
+            <button onclick="calculateOptimalLocation()">计算最优位置</button>
+            <button onclick="clearAllPoints()">清空所有点</button>
+            <input type="number" id="defaultWeight" value="1" min="1" max="10" placeholder="设置权重(1-10)">
+            <button class="export-btn" onclick="exportData()">导出数据</button>
+        </div>
+        <div class="criteria-weights">
+            <h3>评价指标权重设置</h3>
+            <label>交通便利性: <input type="number" id="trafficWeight" value="0.4" step="0.1" min="0" max="1"></label>
+            <label>人口密度: <input type="number" id="populationWeight" value="0.3" step="0.1" min="0" max="1"></label>
+            <label>成本因素: <input type="number" id="costWeight" value="0.3" step="0.1" min="0" max="1"></label>
+        </div>
+        <div class="coordinate-picker">
+            <input type="number" id="lat" placeholder="纬度" step="0.0001">
+            <input type="number" id="lng" placeholder="经度" step="0.0001">
+            <button onclick="addPointByCoordinate()">添加坐标点</button>
+        </div>
+    </div>
+    
+    <div id="map"></div>
+    
+    <div class="info-panel">
+        <h3>配送点信息</h3>
+        <table id="pointsTable">
+            <thead>
+                <tr>
+                    <th>编号</th>
+                    <th>经度</th>
+                    <th>纬度</th>
+                    <th>权重</th>
+                    <th>操作</th>
+                </tr>
+            </thead>
+            <tbody></tbody>
+        </table>
+    </div>
+
+    <div class="calculation-panel">
+        <h3>次分析计算过程</h3>
+        <div id="calculationSteps"></div>
+    </div>
+
+    <div class="legend">
+        <h4>图例说明</h4>
+        <div><img src="https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-blue.png"> 配送点</div>
+        <div><img src="https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-red.png"> 最优位置</div>
+    </div>
+
+    <div id="retryNotification" class="retry-notification">
+        正在重试获取交通数据...
+    </div>
+
+    <div class="loading-indicator" id="loadingIndicator">
+        <div>正在处理数据...</div>
+        <div id="retryCount"></div>
+    </div>
+
+    <div class="mobile-warning">
+        建议使用电脑访问以获得更好的体验
+    </div>
+
+    <div class="comparison-panel" id="comparisonPanel" style="display: none;">
+        <h4>方案比较</h4>
+        <div id="comparisonResults"></div>
+    </div>
+
+    <div class="visualization-panel">
+        <h3>可视化分析</h3>
+        <div class="chart-container">
+            <canvas id="scoreChart"></canvas>
+            <canvas id="heatmap"></canvas>
+        </div>
+    </div>
+
+    <div class="footer">
+        <p>© 2024 物流配送中心选址系统 - 由苏传毫开发</p>
+    </div>
+
+    <script>
+        // 初始化地图（桂林市中心坐标）
+        var map = L.map('map', {
+            doubleClickZoom: false  // 禁用双击缩放
+        }).setView([25.2744, 110.2936], 12);
+
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            attribution: '© OpenStreetMap contributors'
+        }).addTo(map);
+
+        var deliveryPoints = [];
+        var markers = [];
+
+        // 添加AHP判断矩阵定义
+        const judgmentMatrix = {
+            traffic: {
+                traffic: 1,
+                population: 2,
+                cost: 3
+            },
+            population: {
+                traffic: 1/2,
+                population: 1,
+                cost: 2
+            },
+            cost: {
+                traffic: 1/3,
+                population: 1/2,
+                cost: 1
+            }
+        };
+
+        // 添加计算特征向量函数
+        function calculateEigenVector(matrix) {
+            const criteria = ['traffic', 'population', 'cost'];
+            const n = criteria.length;
+            let weights = [];
+            
+            // 计算每行的几何平均值
+            for(let i = 0; i < n; i++) {
+                let product = 1;
+                for(let j = 0; j < n; j++) {
+                    product *= matrix[criteria[i]][criteria[j]];
+                }
+                weights[i] = Math.pow(product, 1/n);
+            }
+            
+            // 归一化
+            const sum = weights.reduce((a, b) => a + b, 0);
+            return weights.map(w => w/sum);
+        }
+
+        // 添加计算一致性比率的函数
+        function calculateConsistencyRatio(matrix) {
+            const RI = [0, 0, 0.58, 0.90, 1.12]; // 随机一致性指标
+            const n = 3; // 矩阵阶数
+            const criteria = ['traffic', 'population', 'cost'];
+            
+            // 计算λmax
+            let eigenVector = calculateEigenVector(matrix);
+            let sum = 0;
+            for(let i = 0; i < n; i++) {
+                let rowSum = 0;
+                for(let j = 0; j < n; j++) {
+                    rowSum += matrix[criteria[i]][criteria[j]] * eigenVector[j];
+                }
+                sum += rowSum / eigenVector[i];
+            }
+            const lambdaMax = sum / n;
+            
+            // 计算一致性指标CI
+            const CI = (lambdaMax - n) / (n - 1);
+            
+            // 计算一致性比率CR
+            return {
+                CI: CI,
+                CR: CI / RI[n-1],
+                lambdaMax: lambdaMax,
+                eigenVector: eigenVector
+            };
+        }
+
+        // 修改双击事件监听
+        map.on('dblclick', function(e) {
+            e.originalEvent.preventDefault();  // 阻止默认行为
+            e.originalEvent.stopPropagation(); // 阻止事件冒泡
+            addLocationAtPoint(e.latlng);
+        });
+
+        // 修改添加配送点函数
+        function addLocation() {
+            // 不再显示弹窗，改为在页面上显示提示
+            const controlPanel = document.querySelector('.control-panel');
+            const tipElement = document.createElement('div');
+            tipElement.id = 'addPointTip';
+            tipElement.style.cssText = `
+                background-color: #fff3cd;
+                color: #856404;
+                padding: 10px;
+                margin: 10px 0;
+                border-radius: 5px;
+                text-align: center;
+            `;
+            tipElement.innerHTML = '请在地图上双要添加的位置';
+            
+            // 移除已存在的提示（如果有）
+            const existingTip = document.getElementById('addPointTip');
+            if (existingTip) {
+                existingTip.remove();
+            }
+            
+            controlPanel.appendChild(tipElement);
+            
+            // 3秒后自动移除提示
+            setTimeout(() => {
+                if (document.getElementById('addPointTip')) {
+                    document.getElementById('addPointTip').remove();
+                }
+            }, 3000);
+        }
+
+        // 修改在指定位置添加配送点函数
+        function addLocationAtPoint(latlng) {
+            try {
+                // 获取权重值
+                const weight = parseInt(document.getElementById('defaultWeight').value) || 1;
+                
+                // 计算评分
+                const score = calculateSimpleScore(latlng);
+                
+                // 创建点位数据
+                const point = {
+                    latlng: latlng,
+                    weight: weight,
+                    traffic: score.trafficScore,
+                    population: score.populationScore,
+                    cost: score.costScore
+                };
+
+                // 创建标记
+                const marker = L.marker(latlng).addTo(map);
+                
+                // 修改弹窗内容
+                const popupContent = `
+                    <div style="padding: 10px; min-width: 250px;">
+                        <h4 style="margin: 0 0 10px 0; color: #333;">配送点 ${deliveryPoints.length + 1}</h4>
+                        <div style="margin: 5px 0;">
+                            <strong>权重:</strong> ${weight}
+                        </div>
+                        <div style="margin: 5px 0;">
+                            <strong>综合评分:</strong> ${((score.trafficScore + score.populationScore + score.costScore) / 3).toFixed(1)}
+                        </div>
+                        <div style="font-size: 12px; color: #666; margin-top: 10px; border-top: 1px solid #eee; padding-top: 10px;">
+                            <div style="margin: 5px 0;">
+                                <strong>交通评分:</strong> ${score.trafficScore.toFixed(1)}
+                                <div style="font-size: 11px; color: #888; margin-left: 10px;">
+                                    - 距市中心: ${score.distanceToCenter} km
+                                </div>
+                            </div>
+                            <div style="margin: 5px 0;">
+                                <strong>人口评分:</strong> ${score.populationScore.toFixed(1)}
+                            </div>
+                            <div style="margin: 5px 0;">
+                                <strong>成本评分:</strong> ${score.costScore.toFixed(1)}
+                            </div>
+                        </div>
+                        <div style="font-size: 11px; color: #888; margin-top: 10px; border-top: 1px solid #eee; padding-top: 5px;">
+                            <div>经度: ${latlng.lng.toFixed(4)}</div>
+                            <div>纬度: ${latlng.lat.toFixed(4)}</div>
+                        </div>
+                    </div>
+                `;
+                
+                // 设置弹窗选项
+                const popupOptions = {
+                    maxWidth: 300,
+                    className: 'custom-popup'
+                };
+                
+                marker.bindPopup(popupContent, popupOptions).openPopup();
+
+                // 保存点位数据
+                deliveryPoints.push(point);
+                markers.push(marker);
+                
+                // 更新表格
+                updatePointsTable();
+                
+                // 如果有多个点，更新可视化
+                if (deliveryPoints.length > 1) {
+                    updateVisualization();
+                }
+                
+            } catch (error) {
+                console.error('添加点位失败:', error);
+                // 使用更友好的错误提示
+                const errorTip = document.createElement('div');
+                errorTip.style.cssText = `
+                    position: fixed;
+                    top: 20px;
+                    left: 50%;
+                    transform: translateX(-50%);
+                    background-color: #f8d7da;
+                    color: #721c24;
+                    padding: 10px 20px;
+                    border-radius: 5px;
+                    z-index: 2000;
+                `;
+                errorTip.textContent = '添加点位失败，请重试';
+                document.body.appendChild(errorTip);
+                setTimeout(() => errorTip.remove(), 3000);
+            }
+        }
+
+        // 简化评分计算
+        function calculateSimpleScore(latlng) {
+            // 重要位置定义
+            const keyLocations = [
+                { name: '市中心', lat: 25.2744, lng: 110.2936, weight: 1.0 },
+                { name: '火车站', lat: 25.2750, lng: 110.2865, weight: 0.9 },
+                { name: '七星公园', lat: 25.2834, lng: 110.3178, weight: 0.7 }
+            ];
+            
+            // 计算到市中心的距离
+            const distanceToCenter = calculateDistance(
+                latlng.lat, latlng.lng,
+                25.2744, 110.2936
+            );
+            
+            // 基于距离计算交通评分
+            const trafficScore = Math.max(100 - (distanceToCenter * 10), 0);
+            
+            // 计算位置评分（基于到重要位置的距离）
+            let populationScore = 0;
+            keyLocations.forEach(loc => {
+                const distance = calculateDistance(latlng.lat, latlng.lng, loc.lat, loc.lng);
+                populationScore += Math.max(100 - (distance * 10), 0) * loc.weight;
+            });
+            populationScore = populationScore / keyLocations.length;
+            
+            // 成本评分（假设距离市中心越远成本越低）
+            const costScore = Math.min(distanceToCenter * 20, 100);
+            
+            return {
+                trafficScore: trafficScore,
+                populationScore: populationScore,
+                costScore: costScore,
+                distanceToCenter: distanceToCenter.toFixed(2)
+            };
+        }
+
+        // 更新可视化
+        function updateVisualization() {
+            // 清除所有图表
+            const container = document.querySelector('.visualization-panel .chart-container');
+            container.innerHTML = '';
+
+            if (deliveryPoints.length === 0) {
+                container.innerHTML = '<div class="chart-wrapper"><p style="text-align: center; color: #666;">请先添加配送点</p></div>';
+                return;
+            }
+            
+            // 1. 综合评分柱状图
+            createScoreBarChart(container);
+            
+            // 2. 评分趋势折线图
+            createTrendLineChart(container);
+            
+            // 3. 评分雷达图
+            createRadarCharts(container);
+            
+            // 4. 权重分布饼图
+            createWeightPieChart(container);
+            
+            // 5. 评分对比堆叠柱状图
+            createStackedBarChart(container);
+            
+            // 6. 距离���布散点图
+            createDistanceScatterChart(container);
+        }
+
+        // 综合评分柱状图
+        function createScoreBarChart(container) {
+            const wrapper = createChartWrapper(container, '配送点综合评分分布');
+            const canvas = wrapper.querySelector('canvas');
+            
+            new Chart(canvas, {
+                type: 'bar',
+                data: {
+                    labels: deliveryPoints.map((_, i) => `配送点${i + 1}`),
+                    datasets: [{
+                        label: '综合评分',
+                        data: deliveryPoints.map(p => (p.traffic + p.population + p.cost) / 3),
+                        backgroundColor: 'rgba(54, 162, 235, 0.5)',
+                        borderColor: 'rgba(54, 162, 235, 1)',
+                        borderWidth: 1
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            max: 100
+                        }
+                    }
+                }
+            });
+        }
+
+        // 评分趋势折线图
+        function createTrendLineChart(container) {
+            const wrapper = createChartWrapper(container, '评分指标趋势分析');
+            const canvas = wrapper.querySelector('canvas');
+            
+            new Chart(canvas, {
+                type: 'line',
+                data: {
+                    labels: deliveryPoints.map((_, i) => `配送点${i + 1}`),
+                    datasets: [
+                        {
+                            label: '交通评分',
+                            data: deliveryPoints.map(p => p.traffic),
+                            borderColor: 'rgb(255, 99, 132)',
+                            tension: 0.1
+                        },
+                        {
+                            label: '人口评分',
+                            data: deliveryPoints.map(p => p.population),
+                            borderColor: 'rgb(54, 162, 235)',
+                            tension: 0.1
+                        },
+                        {
+                            label: '成本评分',
+                            data: deliveryPoints.map(p => p.cost),
+                            borderColor: 'rgb(75, 192, 192)',
+                            tension: 0.1
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            max: 100
+                        }
+                    }
+                }
+            });
+        }
+
+        // 评分雷达图
+        function createRadarCharts(container) {
+            deliveryPoints.forEach((point, index) => {
+                const wrapper = createChartWrapper(container, `配送点${index + 1}评分分析`);
+                const canvas = wrapper.querySelector('canvas');
+                
+                new Chart(canvas, {
+                    type: 'radar',
+                    data: {
+                        labels: ['交通评分', '人口评分', '成本评分'],
+                        datasets: [{
+                            label: `配送点${index + 1}`,
+                            data: [point.traffic, point.population, point.cost],
+                            backgroundColor: 'rgba(54, 162, 235, 0.2)',
+                            borderColor: 'rgb(54, 162, 235)',
+                            pointBackgroundColor: 'rgb(54, 162, 235)',
+                            pointBorderColor: '#fff',
+                            pointHoverBackgroundColor: '#fff',
+                            pointHoverBorderColor: 'rgb(54, 162, 235)'
+                        }]
+                    },
+                    options: {
+                        elements: {
+                            line: { borderWidth: 3 }
+                        },
+                        scales: {
+                            r: {
+                                angleLines: { display: true },
+                                suggestedMin: 0,
+                                suggestedMax: 100
+                            }
+                        }
+                    }
+                });
+            });
+        }
+
+        // 权重分布饼图
+        function createWeightPieChart(container) {
+            const wrapper = createChartWrapper(container, '配送点权重分布');
+            const canvas = wrapper.querySelector('canvas');
+            
+            new Chart(canvas, {
+                type: 'pie',
+                data: {
+                    labels: deliveryPoints.map((_, i) => `配送点${i + 1}`),
+                    datasets: [{
+                        data: deliveryPoints.map(p => p.weight),
+                        backgroundColor: [
+                            'rgba(255, 99, 132, 0.5)',
+                            'rgba(54, 162, 235, 0.5)',
+                            'rgba(255, 206, 86, 0.5)',
+                            'rgba(75, 192, 192, 0.5)',
+                            'rgba(153, 102, 255, 0.5)'
+                        ]
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    plugins: {
+                        legend: {
+                            position: 'right'
+                        }
+                    }
+                }
+            });
+        }
+
+        // 评分对比堆叠柱状图
+        function createStackedBarChart(container) {
+            const wrapper = createChartWrapper(container, '评分指标对比分析');
+            const canvas = wrapper.querySelector('canvas');
+            
+            new Chart(canvas, {
+                type: 'bar',
+                data: {
+                    labels: deliveryPoints.map((_, i) => `配送点${i + 1}`),
+                    datasets: [
+                        {
+                            label: '交通评分',
+                            data: deliveryPoints.map(p => p.traffic),
+                            backgroundColor: 'rgba(255, 99, 132, 0.5)'
+                        },
+                        {
+                            label: '人口评分',
+                            data: deliveryPoints.map(p => p.population),
+                            backgroundColor: 'rgba(54, 162, 235, 0.5)'
+                        },
+                        {
+                            label: '成本评分',
+                            data: deliveryPoints.map(p => p.cost),
+                            backgroundColor: 'rgba(75, 192, 192, 0.5)'
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    scales: {
+                        x: { stacked: true },
+                        y: {
+                            stacked: true,
+                            beginAtZero: true,
+                            max: 300
+                        }
+                    }
+                }
+            });
+        }
+
+        // 距离分布散点图
+        function createDistanceScatterChart(container) {
+            const wrapper = createChartWrapper(container, '配送点空间分布');
+            const canvas = wrapper.querySelector('canvas');
+            
+            new Chart(canvas, {
+                type: 'scatter',
+                data: {
+                    datasets: [{
+                        label: '配送点分布',
+                        data: deliveryPoints.map(p => ({
+                            x: p.latlng.lng,
+                            y: p.latlng.lat,
+                            r: p.weight * 5 // 点的大小基于权重
+                        })),
+                        backgroundColor: 'rgba(54, 162, 235, 0.5)',
+                        borderColor: 'rgba(54, 162, 235, 1)',
+                        pointRadius: deliveryPoints.map(p => p.weight * 5)
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    scales: {
+                        x: {
+                            title: {
+                                display: true,
+                                text: '经度'
+                            }
+                        },
+                        y: {
+                            title: {
+                                display: true,
+                                text: '纬度'
+                            }
+                        }
+                    }
+                }
+            });
+        }
+
+        // 创建图表包装器的辅助函数
+        function createChartWrapper(container, title) {
+            const wrapper = document.createElement('div');
+            wrapper.className = 'chart-wrapper';
+            
+            const titleDiv = document.createElement('div');
+            titleDiv.className = 'chart-title';
+            titleDiv.textContent = title;
+            
+            const canvas = document.createElement('canvas');
+            
+            wrapper.appendChild(titleDiv);
+            wrapper.appendChild(canvas);
+            container.appendChild(wrapper);
+            
+            return wrapper;
+        }
+
+        // 显示/隐藏加载提示
+        function showLoading() {
+            document.getElementById('loadingIndicator').style.display = 'block';
+        }
+
+        function hideLoading() {
+            document.getElementById('loadingIndicator').style.display = 'none';
+        }
+
+        // 修改交通可达性计算函数
+        function calculateTrafficAccessibility(latlng) {
+            // 主要道路网络
+            const mainRoads = [
+                { name: '中山路', points: [[25.2744, 110.2936], [25.2616, 110.2839]], weight: 1.0 },
+                { name: '阳朔路', points: [[25.2731, 110.2645], [25.2834, 110.3178]], weight: 0.8 },
+                // 添加更多道路...
+            ];
+
+            // 计算道路网络的可达性
+            const accessibility = mainRoads.reduce((score, road) => {
+                const distance = calculateDistanceToRoad(latlng, road.points);
+                return score + Math.exp(-distance / 1) * road.weight;
+            }, 0);
+
+            return Math.min(accessibility * 50, 100); // 归一化到0-100
+        }
+
+        // 获取城市特征
+        function getUrbanFeatures(latlng) {
+            // 返回该位置的主要城市特征
+            return {
+                commercialDensity: calculateCommercialDensity(latlng),
+                trafficAccess: calculateTrafficAccessibility(latlng),
+                population: calculatePopulationDensity(latlng),
+                infrastructure: calculateInfrastructure(latlng)
+            };
+        }
+
+        // 添加计算点到线段距离的函数
+        function calculateDistanceToRoad(point, start, end) {
+            // 简化版本：取到起点和终点的最短距离
+            const d1 = calculateDistance(point.lat, point.lng, start.lat, start.lng);
+            const d2 = calculateDistance(point.lat, point.lng, end.lat, end.lng);
+            return Math.min(d1, d2);
+        }
+
+        // 添加查找最近重位置的函数
+        function findNearestLocation(point, locations) {
+            let nearest = locations[0];
+            let minDistance = calculateDistance(point.lat, point.lng, nearest.lat, nearest.lng);
+            
+            locations.forEach(loc => {
+                const distance = calculateDistance(point.lat, point.lng, loc.lat, loc.lng);
+                if (distance < minDistance) {
+                    minDistance = distance;
+                    nearest = loc;
+                }
+            });
+            
+            return {
+                name: nearest.name,
+                distance: minDistance.toFixed(2) + 'km'
+            };
+        }
+
+        // 添加计算两点之间距离的函数
+        function calculateDistance(lat1, lon1, lat2, lon2) {
+            const R = 6371; // 地球半径（公里）
+            const dLat = (lat2 - lat1) * Math.PI / 180;
+            const dLon = (lon2 - lon1) * Math.PI / 180;
+            const a = 
+                Math.sin(dLat/2) * Math.sin(dLat/2) +
+                Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * 
+                Math.sin(dLon/2) * Math.sin(dLon/2);
+            const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+            return R * c;
+        }
+
+        // 修改生成评分详情的函数
+        function generateScoreDetails(details) {
+            return `
+                <div class="score-details">
+                    <small>
+                        道路评分: ${details.roadScore.toFixed(1)}<br>
+                        位置评分: ${details.locationScore.toFixed(1)}<br>
+                        距市中心: ${details.distanceToCenter}<br>
+                        最重要位置: ${details.nearestLocation.name} 
+                        (${details.nearestLocation.distance})
+                    </small>
+                </div>
+            `;
+        }
+
+        // 添加重试机制
+        async function retry(fn, args, maxAttempts) {
+            for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+                try {
+                    return await fn(...args);
+                } catch (error) {
+                    if (attempt === maxAttempts) throw error;
+                    document.getElementById('retryNotification').style.display = 'block';
+                    await new Promise(resolve => setTimeout(resolve, 1000 * attempt));
+                    document.getElementById('retryNotification').style.display = 'none';
+                }
+            }
+        }
+
+        // 修改坐标输入添加功能
+        function addPointByCoordinate() {
+            const lat = parseFloat(document.getElementById('lat').value);
+            const lng = parseFloat(document.getElementById('lng').value);
+            
+            if (isNaN(lat) || isNaN(lng)) {
+                alert('请输入有效的坐标值');
+                return;
+            }
+            
+            // 桂林市范围检查
+            if (lat < 24.5 || lat > 26 || lng < 109.5 || lng > 111) {
+                alert('坐标超出桂林市范围');
+                return;
+            }
+            
+            addLocationAtPoint({ lat, lng });
+            
+            // 清空输入框
+            document.getElementById('lat').value = '';
+            document.getElementById('lng').value = '';
+        }
+
+        // 添加数据导出功能
+        function exportData() {
+            const data = {
+                points: deliveryPoints.map(point => ({
+                    latitude: point.latlng.lat,
+                    longitude: point.latlng.lng,
+                    weight: point.weight,
+                    traffic: point.traffic,
+                    population: point.population,
+                    cost: point.cost
+                })),
+                calculationResults: document.getElementById('calculationSteps').innerHTML
+            };
+            
+            const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = '物流中心选址分析结果.json';
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+        }
+
+        // 修改计算过程显示
+        function updateCalculationDetails(point, scores) {
+            return `
+                <div class="calculation-details">
+                    <h6>详细评分</h6>
+                    <ul>
+                        <li>道路密度分：${scores.roadDensity.toFixed(2)}</li>
+                        <li>道路级别评分：${scores.roadLevel.toFixed(2)}</li>
+                        <li>交通设施评分：${scores.facilities.toFixed(2)}</li>
+                        <li>距离评分：${scores.distance.toFixed(2)}</li>
+                        <li>综合交通评分：${scores.total.toFixed(2)}</li>
+                    </ul>
+                </div>
+            `;
+        }
+
+        // 计算点到道路的最短距离
+        function calculateMinDistance(point, nodes) {
+            // 这里可以实现具体的距离计算逻辑
+            // 简化版本使用点到道路起终点的最短距离
+            return 0; // 暂时返回0，实际应该计算真实距离
+        }
+
+        // 初始化
+        window.onload = function() {
+            // 检查移动设备
+            if (window.innerWidth <= 768) {
+                document.querySelector('.mobile-warning').style.display = 'block';
+            }
+        };
+
+        // 在script标签中添加性能优化相关函数
+        // 添加Web Worker来处理复杂计算
+        const calculationWorker = new Worker('calculation-worker.js');
+
+        // 添加计算缓存
+        const calculationCache = new Map();
+
+        // 优化计算函数
+        async function optimizedCalculation(latlng) {
+            const cacheKey = `${latlng.lat},${latlng.lng}`;
+            
+            // 检查缓存
+            if (calculationCache.has(cacheKey)) {
+                return calculationCache.get(cacheKey);
+            }
+
+            // 使用Web Worker行算
+            return new Promise((resolve) => {
+                calculationWorker.postMessage({ type: 'calculate', latlng });
+                calculationWorker.onmessage = (e) => {
+                    const result = e.data;
+                    calculationCache.set(cacheKey, result);
+                    resolve(result);
+                };
+            });
+        }
+
+        // 修改评分分布图
+        function createScoreChart(scores) {
+            const ctx = document.getElementById('scoreChart').getContext('2d');
+            new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: scores.map((_, i) => `配送点${i + 1}`),
+                    datasets: [{
+                        label: '综合评分',
+                        data: scores.map(s => s.score),
+                        backgroundColor: 'rgba(54, 162, 235, 0.5)',
+                        borderColor: 'rgba(54, 162, 235, 1)',
+                        borderWidth: 1
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            max: 100
+                        }
+                    },
+                    plugins: {
+                        title: {
+                            display: true,
+                            text: '各配送点综合评分对比'
+                        }
+                    }
+                }
+            });
+        }
+
+        // 修改趋势图
+        function createTrendChart() {
+            const ctx = document.getElementById('trendChart').getContext('2d');
+            new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: deliveryPoints.map((_, i) => `配送点${i + 1}`),
+                    datasets: [
+                        {
+                            label: '交通评分',
+                            data: deliveryPoints.map(p => p.traffic),
+                            borderColor: 'rgb(255, 99, 132)',
+                            tension: 0.1,
+                            fill: false
+                        },
+                        {
+                            label: '人口评分',
+                            data: deliveryPoints.map(p => p.population),
+                            borderColor: 'rgb(54, 162, 235)',
+                            tension: 0.1,
+                            fill: false
+                        },
+                        {
+                            label: '成本评分',
+                            data: deliveryPoints.map(p => p.cost),
+                            borderColor: 'rgb(75, 192, 192)',
+                            tension: 0.1,
+                            fill: false
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            max: 100
+                        }
+                    }
+                }
+            });
+        }
+
+        // 添加计算最优位置函数
+        function calculateOptimalLocation() {
+            if (deliveryPoints.length === 0) {
+                alert('请先添加配送点！');
+                return;
+            }
+
+            let calculationSteps = document.getElementById('calculationSteps');
+            calculationSteps.innerHTML = '<h4>层次分析法(AHP)计算过程：</h4>';
+
+            // 第一步：显示所有配送点基础��息
+            calculationSteps.innerHTML += `
+                <div class="calculation-steps">
+                    <h5>步骤1：配送点基础信息</h5>
+                    <table>
+                        <tr>
+                            <th>配送点</th>
+                            <th>经度</th>
+                            <th>纬度</th>
+                            <th>权重</th>
+                            <th>交通评分</th>
+                            <th>人口评分</th>
+                            <th>成本评分</th>
+                        </tr>
+                        ${deliveryPoints.map((point, index) => `
+                            <tr>
+                                <td>配送点${index + 1}</td>
+                                <td>${point.latlng.lng.toFixed(4)}</td>
+                                <td>${point.latlng.lat.toFixed(4)}</td>
+                                <td>${point.weight}</td>
+                                <td>${point.traffic.toFixed(2)}</td>
+                                <td>${point.population.toFixed(2)}</td>
+                                <td>${point.cost.toFixed(2)}</td>
+                            </tr>
+                        `).join('')}
+                    </table>
+                </div>
+            `;
+
+            // 第二步：构建判断矩阵
+            calculationSteps.innerHTML += `
+                <div class="calculation-steps">
+                    <h5>步骤2：构建判断矩阵</h5>
+                    <table>
+                        <tr>
+                            <th></th>
+                            <th>交通便利性</th>
+                            <th>人口密度</th>
+                            <th>成本因素</th>
+                        </tr>
+                        <tr>
+                            <td>交通便利性</td>
+                            <td>${judgmentMatrix.traffic.traffic}</td>
+                            <td>${judgmentMatrix.traffic.population}</td>
+                            <td>${judgmentMatrix.traffic.cost}</td>
+                        </tr>
+                        <tr>
+                            <td>人口密度</td>
+                            <td>${judgmentMatrix.population.traffic}</td>
+                            <td>${judgmentMatrix.population.population}</td>
+                            <td>${judgmentMatrix.population.cost}</td>
+                        </tr>
+                        <tr>
+                            <td>成本因素</td>
+                            <td>${judgmentMatrix.cost.traffic}</td>
+                            <td>${judgmentMatrix.cost.population}</td>
+                            <td>${judgmentMatrix.cost.cost}</td>
+                        </tr>
+                    </table>
+                </div>
+            `;
+
+            // 第三步：计算权重向量和一致性检验
+            const consistencyResult = calculateConsistencyRatio(judgmentMatrix);
+            const weights = consistencyResult.eigenVector;
+
+            calculationSteps.innerHTML += `
+                <div class="calculation-steps">
+                    <h5>步骤3：计算权重向量和一致性检验</h5>
+                    <p>特征值λmax = ${consistencyResult.lambdaMax.toFixed(4)}</p>
+                    <p>一致性指标CI = ${consistencyResult.CI.toFixed(4)}</p>
+                    <p>一致性比率CR = ${consistencyResult.CR.toFixed(4)}</p>
+                    <p>判断矩阵${consistencyResult.CR < 0.1 ? '通过' : '未通过'}一致性检验</p>
+                    <h6>计算得到的权重：</h6>
+                    <p>交通便利性权重：${weights[0].toFixed(4)}</p>
+                    <p>人口密度权重：${weights[1].toFixed(4)}</p>
+                    <p>成本因素权重：${weights[2].toFixed(4)}</p>
+                </div>
+            `;
+
+            // 第四步：计算各备选点的综合得分
+            let scores = [];
+            deliveryPoints.forEach((point, index) => {
+                const score = (
+                    point.traffic * weights[0] +
+                    point.population * weights[1] +
+                    point.cost * weights[2]
+                ) * point.weight;
+                
+                scores.push({
+                    index: index,
+                    score: score,
+                    details: {
+                        traffic: point.traffic * weights[0],
+                        population: point.population * weights[1],
+                        cost: point.cost * weights[2]
+                    }
+                });
+            });
+
+            calculationSteps.innerHTML += `
+                <div class="calculation-steps">
+                    <h5>步骤4：计算各备选点综合得分</h5>
+                    <table>
+                        <tr>
+                            <th>配送点</th>
+                            <th>交通得分</th>
+                            <th>人口得分</th>
+                            <th>成本得分</th>
+                            <th>点位权重</th>
+                            <th>综合得分</th>
+                        </tr>
+                        ${scores.map((score, i) => `
+                            <tr>
+                                <td>配送点${i + 1}</td>
+                                <td>${score.details.traffic.toFixed(2)}</td>
+                                <td>${score.details.population.toFixed(2)}</td>
+                                <td>${score.details.cost.toFixed(2)}</td>
+                                <td>${deliveryPoints[i].weight}</td>
+                                <td>${score.score.toFixed(2)}</td>
+                            </tr>
+                        `).join('')}
+                    </table>
+                </div>
+            `;
+
+            // 第五步：计算最优位置
+            var sumLat = 0;
+            var sumLng = 0;
+            var totalScore = 0;
+
+            scores.forEach(score => {
+                const point = deliveryPoints[score.index];
+                sumLat += point.latlng.lat * score.score;
+                sumLng += point.latlng.lng * score.score;
+                totalScore += score.score;
+            });
+
+            var optimalLocation = {
+                lat: sumLat / totalScore,
+                lng: sumLng / totalScore
+            };
+
+            calculationSteps.innerHTML += `
+                <div class="calculation-steps">
+                    <h5>步骤5：计算最优位置坐标</h5>
+                    <p>最优位置坐标：(${optimalLocation.lat.toFixed(4)}, ${optimalLocation.lng.toFixed(4)})</p>
+                    <p>说明：该位置综合考虑了所有配送点位置、权重和评分因素</p>
+                </div>
+            `;
+
+            // 在地图上标记最优位置
+            if (window.optimalMarker) {
+                map.removeLayer(window.optimalMarker);
+            }
+            window.optimalMarker = L.marker(optimalLocation, {
+                icon: L.icon({
+                    iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-red.png',
+                    iconSize: [25, 41],
+                    iconAnchor: [12, 41]
+                })
+            }).addTo(map)
+            .bindPopup('推荐的物流中心位置').openPopup();
+
+            // 添加计算结果总结
+            calculationSteps.innerHTML += `
+                <div class="calculation-steps">
+                    <h5>计算结果总结</h5>
+                    <p>1. 评价指标权重：</p>
+                    <ul>
+                        <li>交通便利性：${weights[0].toFixed(4)}</li>
+                        <li>人口密度：${weights[1].toFixed(4)}</li>
+                        <li>成本因素：${weights[2].toFixed(4)}</li>
+                    </ul>
+                    <p>2. 一致性检验结果：${consistencyResult.CR < 0.1 ? '通过' : '未通过'}</p>
+                    <p>3. 最优位置坐标：(${optimalLocation.lat.toFixed(4)}, ${optimalLocation.lng.toFixed(4)})</p>
+                </div>
+            `;
+        }
+
+        // 修改updatePointsTable函数
+        function updatePointsTable() {
+            var tbody = document.querySelector('#pointsTable tbody');
+            tbody.innerHTML = '';
+            
+            deliveryPoints.forEach((point, index) => {
+                var row = tbody.insertRow();
+                row.innerHTML = `
+                    <td>${index + 1}</td>
+                    <td>${point.latlng.lng.toFixed(4)}</td>
+                    <td>${point.latlng.lat.toFixed(4)}</td>
+                    <td>
+                        <input type="number" value="${point.weight}" min="1" max="10" 
+                            onchange="updateWeight(${index}, this.value)" 
+                            style="width: 60px;">
+                    </td>
+                    <td>
+                        <button onclick="deletePoint(${index})" class="btn-delete">删除</button>
+                    </td>
+                `;
+            });
+        }
+
+        // 添加更新权重函数
+        function updateWeight(index, newWeight) {
+            newWeight = parseInt(newWeight);
+            if (newWeight >= 1 && newWeight <= 10) {
+                deliveryPoints[index].weight = newWeight;
+                // 更新点位信息
+                const point = deliveryPoints[index];
+                const popupContent = `
+                    <div style="padding: 10px; min-width: 250px;">
+                        <h4 style="margin: 0 0 10px 0; color: #333;">配送点 ${index + 1}</h4>
+                        <div style="margin: 5px 0;">
+                            <strong>权重:</strong> ${newWeight}
+                        </div>
+                        <div style="margin: 5px 0;">
+                            <strong>综合评分:</strong> ${((point.traffic + point.population + point.cost) / 3).toFixed(1)}
+                        </div>
+                        <div style="font-size: 12px; color: #666; margin-top: 10px;">
+                            <div>交通评分: ${point.traffic.toFixed(1)}</div>
+                            <div>人���评分: ${point.population.toFixed(1)}</div>
+                            <div>成本评分: ${point.cost.toFixed(1)}</div>
+                        </div>
+                    </div>
+                `;
+                markers[index].bindPopup(popupContent);
+                
+                // 如果有多个点，更新可视化
+                if (deliveryPoints.length > 1) {
+                    updateVisualization();
+                }
+            } else {
+                alert('权重必须在1-10之间！');
+                updatePointsTable(); // 重置表格显示
+            }
+        }
+
+        // 添加删除点位函数
+        function deletePoint(index) {
+            // 从地图上移除标记
+            map.removeLayer(markers[index]);
+            // 从数组中移除数据
+            markers.splice(index, 1);
+            deliveryPoints.splice(index, 1);
+            // 更新表格
+            updatePointsTable();
+            // 如果有多个点，更新可视化
+            if (deliveryPoints.length > 1) {
+                updateVisualization();
+            }
+        }
+
+        // 添加清空所有点的函数
+        function clearAllPoints() {
+            // 从地图上移除所有标记（包括配送点和最优位置点）
+            markers.forEach(marker => map.removeLayer(marker));
+            
+            // 移除最优位置标记（如果存在）
+            if (window.optimalMarker) {
+                map.removeLayer(window.optimalMarker);
+                window.optimalMarker = null;
+            }
+            
+            // 清空数组
+            markers = [];
+            deliveryPoints = [];
+            
+            // 更新表格
+            updatePointsTable();
+            
+            // 清空计算结果
+            document.getElementById('calculationSteps').innerHTML = '';
+            
+            // 清空图表
+            const container = document.querySelector('.visualization-panel .chart-container');
+            container.innerHTML = '<div class="chart-wrapper"><p style="text-align: center; color: #666;">请先添加配送点</p></div>';
+            
+            // 重置所有输入框
+            document.getElementById('defaultWeight').value = '1';
+            document.getElementById('lat').value = '';
+            document.getElementById('lng').value = '';
+            
+            // 重置权重设置
+            document.getElementById('trafficWeight').value = '0.4';
+            document.getElementById('populationWeight').value = '0.3';
+            document.getElementById('costWeight').value = '0.3';
+        }
+    </script>
+</body>
+</html> 
